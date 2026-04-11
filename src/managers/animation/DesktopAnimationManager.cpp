@@ -248,13 +248,14 @@ void CDesktopAnimationManager::startAnimation(PHLWORKSPACE ws, eAnimationType ty
         ws->m_alpha->setConfig(Config::animationTree()->getAnimationPropertyConfig(ANIMNAME));
         ws->m_renderOffset->setConfig(Config::animationTree()->getAnimationPropertyConfig(ANIMNAME));
     }
-    static auto PWORKSPACEGAP = CConfigValue<Hyprlang::INT>("general:gaps_workspaces");
-    const auto  PMONITOR      = ws->m_monitor.lock();
-    const auto  ANIMSTYLE     = style.value_or(ws->m_alpha->getStyle());
+    static  auto    PWORKSPACEGAP = CConfigValue<Hyprlang::INT>("general:gaps_workspaces");
+    const   auto    PMONITOR      = ws->m_monitor.lock();
+    const   auto    ANIMSTYLE     = style.value_or(ws->m_alpha->getStyle());
 
-    float       movePerc = 100.f;
-    // inverted for some reason. TODO: fix the cause
-    bool vert = ANIMSTYLE.starts_with("slidevert") || ANIMSTYLE.starts_with("slidefadevert");
+    float           movePerc      = 100.f;
+    bool            vert          = ANIMSTYLE.contains("vert");
+    bool            slide         = ANIMSTYLE.contains("slide");
+    bool            fade          = ANIMSTYLE.contains("fade") || ws->m_isSpecialWorkspace; // special workspaces always fade, even if the style doesn't specify it
 
     // set floating windows offset callbacks
     ws->m_renderOffset->setUpdateCallback([weak = PHLWORKSPACEREF{ws}](auto) {
@@ -294,78 +295,36 @@ void CDesktopAnimationManager::startAnimation(PHLWORKSPACE ws, eAnimationType ty
         } catch (std::exception& e) { Log::logger->log(Log::ERR, "Error in startAnim: invalid percentage"); }
     }
 
-    if (ANIMSTYLE.starts_with("slidefade")) {
+    int in_sign = IN ? -1 : 1;
+    int left_sign = left ? -1 : 1;
 
-        ws->m_alpha->setValueAndWarp(1.f);
-        ws->m_renderOffset->setValueAndWarp(Vector2D(0, 0));
+    auto render_offset = Vector2D(
+        vert ? 0.0 : left_sign * in_sign * (PMONITOR->m_size.x + *PWORKSPACEGAP) * (movePerc / 100.f),
+        vert ? -1 * left_sign * in_sign * (PMONITOR->m_size.y + *PWORKSPACEGAP) * (movePerc / 100.f) : 0.0 // vert grows in the opposite direction, so invert the sign of left_sign
+    );
 
-        if (vert) {
-            if (IN) {
-                ws->m_alpha->setValueAndWarp(0.f);
-                ws->m_renderOffset->setValueAndWarp(Vector2D(0.0, (left ? PMONITOR->m_size.y : -PMONITOR->m_size.y) * (movePerc / 100.f)));
-                *ws->m_alpha        = 1.f;
-                *ws->m_renderOffset = Vector2D(0, 0);
-            } else {
-                ws->m_alpha->setValueAndWarp(1.f);
-                *ws->m_alpha        = 0.f;
-                *ws->m_renderOffset = Vector2D(0.0, (left ? -PMONITOR->m_size.y : PMONITOR->m_size.y) * (movePerc / 100.f));
-            }
-        } else {
-            if (IN) {
-                ws->m_alpha->setValueAndWarp(0.f);
-                ws->m_renderOffset->setValueAndWarp(Vector2D((left ? PMONITOR->m_size.x : -PMONITOR->m_size.x) * (movePerc / 100.f), 0.0));
-                *ws->m_alpha        = 1.f;
-                *ws->m_renderOffset = Vector2D(0, 0);
-            } else {
-                ws->m_alpha->setValueAndWarp(1.f);
-                *ws->m_alpha        = 0.f;
-                *ws->m_renderOffset = Vector2D((left ? -PMONITOR->m_size.x : PMONITOR->m_size.x) * (movePerc / 100.f), 0.0);
-            }
-        }
-    } else if (ANIMSTYLE == "fade") {
-        ws->m_renderOffset->setValueAndWarp(Vector2D(0, 0)); // fix a bug, if switching from slide -> fade.
+    auto alpha_start = fade ? IN ? 0.f : 1.f : 1.f;
+    auto alpha_end = fade ? IN ? 1.f : 0.f : 1.f;
 
-        if (IN) {
-            ws->m_alpha->setValueAndWarp(0.f);
-            *ws->m_alpha = 1.f;
-        } else {
+    auto render_offset_start = slide ? IN ? render_offset : Vector2D(0, 0) : Vector2D(0, 0);
+    auto render_offset_end = slide ? IN ? Vector2D(0, 0) : render_offset : Vector2D(0, 0);
+    
+    if (IN) {
+        if (!fade && (!ws->m_alpha->isBeingAnimated() || ws->m_alpha->isAnimationManagerDead())){
             ws->m_alpha->setValueAndWarp(1.f);
-            *ws->m_alpha = 0.f;
-        }
-    } else if (vert) {
-        const auto YDISTANCE = (PMONITOR->m_size.y + *PWORKSPACEGAP) * (movePerc / 100.f);
-        ws->m_alpha->setValueAndWarp(1.f); // fix a bug, if switching from fade -> slide.
+        } else if (ws->m_alpha->value() == 1.f) // if alpha is != 1.f, it means an animation is already running, so don't set and warp!
+            ws->m_alpha->setValueAndWarp(alpha_start);
 
-        if (IN) {
-            ws->m_renderOffset->setValueAndWarp(Vector2D(0.0, left ? YDISTANCE : -YDISTANCE));
-            *ws->m_renderOffset = Vector2D(0, 0);
-        } else {
-            *ws->m_renderOffset = Vector2D(0.0, left ? -YDISTANCE : YDISTANCE);
-        }
-
-    } else {
-        // fallback is slide
-        const auto XDISTANCE = (PMONITOR->m_size.x + *PWORKSPACEGAP) * (movePerc / 100.f);
-        ws->m_alpha->setValueAndWarp(1.f); // fix a bug, if switching from fade -> slide.
-
-        if (IN) {
-            ws->m_renderOffset->setValueAndWarp(Vector2D(left ? XDISTANCE : -XDISTANCE, 0.0));
-            *ws->m_renderOffset = Vector2D(0, 0);
-        } else {
-            *ws->m_renderOffset = Vector2D(left ? -XDISTANCE : XDISTANCE, 0.0);
-        }
+        Vector2D current_offset = ws->m_renderOffset->value();
+        if (!slide && (!ws->m_renderOffset->isBeingAnimated() || ws->m_renderOffset->isAnimationManagerDead())){
+            ws->m_renderOffset->setValueAndWarp(Vector2D(0, 0));
+        // } else if (current_offset.x > PMONITOR->m_size.x || current_offset.x < -PMONITOR->m_size.x || current_offset.y > PMONITOR->m_size.y || current_offset.y < -PMONITOR->m_size.y || (current_offset.x == 0 && current_offset.y == 0)) // Check if the current offset is already past the point of no return, if so, warp it back to the start to prevent it from getting stuck in a weird state. Also warp if it's exactly at 0,0 to prevent it from getting stuck there
+        } else if (!ws->m_renderOffset->isBeingAnimated() || ws->m_renderOffset->isAnimationManagerDead() || (current_offset.x == 0 && current_offset.y == 0))
+            ws->m_renderOffset->setValueAndWarp(render_offset_start);
     }
-
-    if (ws->m_isSpecialWorkspace) {
-        // required for open/close animations
-        if (IN) {
-            ws->m_alpha->setValueAndWarp(0.f);
-            *ws->m_alpha = 1.f;
-        } else {
-            ws->m_alpha->setValueAndWarp(1.f);
-            *ws->m_alpha = 0.f;
-        }
-    }
+    
+    *ws->m_alpha = alpha_end;
+    *ws->m_renderOffset = render_offset_end;
 
     if (instant) {
         ws->m_renderOffset->warp();

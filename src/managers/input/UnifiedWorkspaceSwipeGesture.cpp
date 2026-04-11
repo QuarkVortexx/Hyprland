@@ -44,9 +44,9 @@ void CUnifiedWorkspaceSwipeGesture::update(double delta) {
 
     const auto   SWIPEDISTANCE = std::clamp(*PSWIPEDIST, sc<int64_t>(1LL), sc<int64_t>(UINT32_MAX));
     const auto   XDISTANCE     = m_monitor->m_size.x + *PWORKSPACEGAP;
-    const auto   YDISTANCE     = m_monitor->m_size.y + *PWORKSPACEGAP;
+    const auto   YDISTANCE     = -m_monitor->m_size.y + *PWORKSPACEGAP;
     const auto   ANIMSTYLE     = m_workspaceBegin->m_renderOffset->getStyle();
-    const bool   VERTANIMS     = ANIMSTYLE == "slidevert" || ANIMSTYLE.starts_with("slidefadevert");
+    const bool   VERTANIMS     = ANIMSTYLE.starts_with("slidevert") || ANIMSTYLE.starts_with("slidefadevert");
     const double d             = m_delta - delta;
     m_delta                    = delta;
 
@@ -186,7 +186,7 @@ void CUnifiedWorkspaceSwipeGesture::end() {
     static auto PSWIPEUSER    = CConfigValue<Hyprlang::INT>("gestures:workspace_swipe_use_r");
     static auto PWORKSPACEGAP = CConfigValue<Hyprlang::INT>("general:gaps_workspaces");
     const auto  ANIMSTYLE     = m_workspaceBegin->m_renderOffset->getStyle();
-    const bool  VERTANIMS     = ANIMSTYLE == "slidevert" || ANIMSTYLE.starts_with("slidefadevert");
+    const bool  VERTANIMS     = ANIMSTYLE.starts_with("slidevert") || ANIMSTYLE.starts_with("slidefadevert");
 
     // commit
     auto       workspaceIDLeft  = getWorkspaceIDNameFromString((*PSWIPEUSER ? "r-1" : "m-1")).id;
@@ -203,7 +203,7 @@ void CUnifiedWorkspaceSwipeGesture::end() {
 
     const auto   RENDEROFFSETMIDDLE = m_workspaceBegin->m_renderOffset->value();
     const auto   XDISTANCE          = m_monitor->m_size.x + *PWORKSPACEGAP;
-    const auto   YDISTANCE          = m_monitor->m_size.y + *PWORKSPACEGAP;
+    const auto   YDISTANCE          = -m_monitor->m_size.y + *PWORKSPACEGAP;
 
     PHLWORKSPACE pSwitchedTo = nullptr;
 
