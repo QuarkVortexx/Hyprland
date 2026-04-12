@@ -1376,14 +1376,14 @@ void CMonitor::changeWorkspace(const PHLWORKSPACE& pWorkspace, bool internal, bo
         POLDWORKSPACE->m_events.activeChanged.emit();
     }
 
-    pWorkspace->m_visible = true;
-
     if (!internal) {
         const auto ANIMTOLEFT = POLDWORKSPACE && (shouldWraparound(pWorkspace->m_id, POLDWORKSPACE->m_id) ^ (pWorkspace->m_id > POLDWORKSPACE->m_id));
         const auto ANIMSTYLE  = pWorkspace->m_animationStyle;
         if (POLDWORKSPACE)
             g_pDesktopAnimationManager->startAnimation(POLDWORKSPACE, CDesktopAnimationManager::ANIMATION_TYPE_OUT, ANIMTOLEFT, false, ANIMSTYLE);
         g_pDesktopAnimationManager->startAnimation(pWorkspace, CDesktopAnimationManager::ANIMATION_TYPE_IN, ANIMTOLEFT, false, ANIMSTYLE);
+
+        pWorkspace->m_visible = true;
 
         // move pinned windows
         for (auto const& w : g_pCompositor->m_windows) {
@@ -1419,7 +1419,8 @@ void CMonitor::changeWorkspace(const PHLWORKSPACE& pWorkspace, bool internal, bo
         g_pEventManager->postEvent(SHyprIPCEvent{"workspace", pWorkspace->m_name});
         g_pEventManager->postEvent(SHyprIPCEvent{"workspacev2", std::format("{},{}", pWorkspace->m_id, pWorkspace->m_name)});
         Event::bus()->m_events.workspace.active.emit(pWorkspace);
-    }
+    } else
+        pWorkspace->m_visible = true;
 
     // set all LSes as not above fullscreen on workspace changes
     for (auto const& ls : g_pCompositor->m_layers) {

@@ -298,31 +298,23 @@ void CDesktopAnimationManager::startAnimation(PHLWORKSPACE ws, eAnimationType ty
     int in_sign = IN ? -1 : 1;
     int left_sign = left ? -1 : 1;
 
-    auto render_offset = Vector2D(
+    Vector2D render_offset = Vector2D(
         vert ? 0.0 : left_sign * in_sign * (PMONITOR->m_size.x + *PWORKSPACEGAP) * (movePerc / 100.f),
         vert ? -1 * left_sign * in_sign * (PMONITOR->m_size.y + *PWORKSPACEGAP) * (movePerc / 100.f) : 0.0 // vert grows in the opposite direction, so invert the sign of left_sign
     );
 
-    auto alpha_start = fade ? IN ? 0.f : 1.f : 1.f;
-    auto alpha_end = fade ? IN ? 1.f : 0.f : 1.f;
+    float alpha_start = fade ? IN ? 0.f : 1.f : 1.f;
+    float alpha_end = fade ? IN ? 1.f : 0.f : 1.f;
 
-    auto render_offset_start = slide ? IN ? render_offset : Vector2D(0, 0) : Vector2D(0, 0);
-    auto render_offset_end = slide ? IN ? Vector2D(0, 0) : render_offset : Vector2D(0, 0);
-    
-    if (IN) {
-        if (!fade && (!ws->m_alpha->isBeingAnimated() || ws->m_alpha->isAnimationManagerDead())){
-            ws->m_alpha->setValueAndWarp(1.f);
-        } else if (ws->m_alpha->value() == 1.f) // if alpha is != 1.f, it means an animation is already running, so don't set and warp!
-            ws->m_alpha->setValueAndWarp(alpha_start);
+    Vector2D render_offset_start = slide ? IN ? render_offset : Vector2D(0, 0) : Vector2D(0, 0);
+    Vector2D render_offset_end = slide ? IN ? Vector2D(0, 0) : render_offset : Vector2D(0, 0);
 
-        Vector2D current_offset = ws->m_renderOffset->value();
-        if (!slide && (!ws->m_renderOffset->isBeingAnimated() || ws->m_renderOffset->isAnimationManagerDead())){
-            ws->m_renderOffset->setValueAndWarp(Vector2D(0, 0));
-        // } else if (current_offset.x > PMONITOR->m_size.x || current_offset.x < -PMONITOR->m_size.x || current_offset.y > PMONITOR->m_size.y || current_offset.y < -PMONITOR->m_size.y || (current_offset.x == 0 && current_offset.y == 0)) // Check if the current offset is already past the point of no return, if so, warp it back to the start to prevent it from getting stuck in a weird state. Also warp if it's exactly at 0,0 to prevent it from getting stuck there
-        } else if (!ws->m_renderOffset->isBeingAnimated() || ws->m_renderOffset->isAnimationManagerDead() || (current_offset.x == 0 && current_offset.y == 0))
-            ws->m_renderOffset->setValueAndWarp(render_offset_start);
+    // Only IN workspaces should not be visible at the start of the animation? But this it not true?
+    if (IN && !ws->m_visible) {
+        ws->m_alpha->setValueAndWarp(alpha_start);
+        ws->m_renderOffset->setValueAndWarp(render_offset_start);
     }
-    
+
     *ws->m_alpha = alpha_end;
     *ws->m_renderOffset = render_offset_end;
 
